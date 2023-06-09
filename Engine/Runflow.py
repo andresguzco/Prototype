@@ -119,13 +119,9 @@ class Runflow:
 
         key = sub if sub is not None else portfolio
         placeholder = self.portfolio_data[self.portfolio_data["Description"] == portfolio].copy()
-        A = self.equilibrium_data[self.equilibrium_data["Description"] == key]["Constant"].iloc[0]
-        B = self.equilibrium_data[self.equilibrium_data["Description"] == key]["Tracking"].iloc[0]
-        C = self.equilibrium_data[self.equilibrium_data["Description"] == key]["Steepness"].iloc[0]
-        params = [A, B, C]
         placeholder.drop(labels=['Description'], axis=1, inplace=True)
 
-        mod = Engine(input_df=placeholder, eq_params=params)
+        mod = Engine(input_df=placeholder)
         mod.run()
 
         A = mod.mean_model.params[0] / (1-mod.mean_model.params[1])

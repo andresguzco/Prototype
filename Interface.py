@@ -6,8 +6,8 @@ def main() -> None:
     filepath = r"Data/CBR_DataBase_Base.xlsx"
     Runflow(path=filepath,
             verbose=False,
-            plot_fitted=False,
-            plot_err=False).run()
+            plot_fitted=True,
+            plot_err=True).run()
     return None
 
 
