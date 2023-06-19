@@ -1,5 +1,4 @@
 from pandas import DataFrame, read_excel, to_datetime
-from typing import Tuple
 
 
 def format_data(df: DataFrame, segment: str) -> [dict or DataFrame]:

@@ -1,9 +1,10 @@
-from Engine.ModelTypes import SVModel, GARCHModel
 from statsmodels.api import WLS, add_constant
-from statsmodels.tsa. api import coint
+from typing import List, Union, Any
+
+from numpy import ndarray, percentile, random, std
+from Engine.ModelTypes import GARCHModel
 import matplotlib.pyplot as plt
 from pandas import DataFrame
-from numpy import zeros
 
 
 class Engine:
@@ -15,49 +16,37 @@ class Engine:
         self.simulation_df = None
         self.mean_model = None
         self.vol_model = None
-        self.profit = None
         self.shocks = None
-        self.gap = None
 
     def run(self) -> None:
-        self.profit = zeros(len(self.data) - 1)
-        self.profit[:] = (self.data["Short rate"] - self.data["Client rate"]).iloc[1:]
+        self.data["Gap"] = self.data["Short rate"] - self.data["Client rate"]
+        self.data["Indicator"] = self.data["Gap"].apply(lambda x: 1 if x > 0 else 0)
         self.run_WLS()
-
-        phi = 1 - self.mean_model.params[1]
-        self.data["Constant"] = self.mean_model.params[0] / phi
-        self.data["Tracking SR"] = (self.mean_model.params[2] / phi) * self.data["Short rate"]
-        self.data["Tracking ST"] = (self.mean_model.params[3] / phi) * self.data["Steepness"]
-        self.data["Equilibrium"] = self.data["Constant"] + self.data["Tracking SR"] + self.data["Tracking ST"]
-        self.data["Equilibrium"] /= 100
-
-        self.gap = zeros(len(self.data) - 1)
-        self.gap[:] = (self.data["Short rate"] - self.data["Equilibrium"]).iloc[1:]
-        self.estimate_shock_II()
+        self.estimate_shock_GARCH()
         return None
 
     def estimate_shock_GARCH(self) -> None:
         self.vol_model = GARCHModel(data=(self.mean_model.resid / (1-self.mean_model.params[1])))
         self.vol_model.fit()
-        self.shocks, self.simulation_df = self.vol_model.estimate_alpha_VaR(
+        self.shocks = self.vol_model.estimate_alpha_VaR(
             alphas=[0.001, 0.012, 0.988, 0.999],
             num_simulations=1000000
         )
         return None
 
-    def estimate_shock_II(self) -> None:
-        self.vol_model = SVModel(data=self.gap)
-        self.vol_model.fit()
-        self.shocks = self.vol_model.estimate_alpha_VaR(
+    def estimate_shock_Benchmark(self) -> None:
+        self.shocks = shock_sampling(
             alphas=[0.001, 0.012, 0.988, 0.999],
-            num_simulations=1000
+            num_simulations=1000000,
+            WLS_errors=self.mean_model.resid
         )
         return None
 
     def run_WLS(self) -> None:
-        print(coint(y0=self.data["Client rate"], y1=self.data["Short rate"], trend='ct', autolag='aic'))
         endog = self.data["Client rate"].iloc[1:].reset_index(drop=True)
-        exog = add_constant(self.data[["Client rate", "Short rate", "Steepness"]].iloc[:-1].reset_index(drop=True))
+        exog = add_constant(
+            self.data[["Client rate", "Short rate", "Steepness", "Indicator"]].iloc[:-1].reset_index(drop=True)
+        )
         w = self.data["Volume"].iloc[:-1].reset_index(drop=True)
 
         self.mean_model = WLS(
@@ -78,8 +67,6 @@ class Engine:
 
     def plot_fitted(self, portfolio: str) -> None:
         plt.plot(self.data["Client rate"].sort_index(), label="Client Rate")
-        plt.plot(self.data.index[1:], self.gap[:], label='Market Gap')
-        plt.plot(self.data.index[1:], self.profit[:], label='Profit Gap')
         plt.plot(self.data.index[1:], self.mean_model.fittedvalues, label="Model")
         plt.plot(self.data["Short rate"], label="SR")
         plt.title(f'{portfolio}: Fitted Values')
@@ -89,8 +76,25 @@ class Engine:
 
     def plot_errors(self, portfolio: str) -> None:
         plt.plot(self.mean_model.resid, label="Model")
-        plt.plot(self.gap, label="Market Gap")
         plt.title(f'{portfolio}: Residuals')
         plt.legend()
         plt.show()
         return None
+
+
+def shock_sampling(
+        alphas=None,
+        num_simulations: int = 10000,
+        WLS_errors: ndarray = None
+) -> List[Union[Union[int, float, complex], Any]]:
+
+    if alphas is None:
+        alphas = [0.10, 0.05, 0.01]
+
+    random.seed(123)
+    simulated_errors = random.normal(loc=0, scale=std(WLS_errors), size=num_simulations)
+
+    output = list()
+    for i, alpha in enumerate(alphas):
+        output.append(-percentile(simulated_errors, alpha * 100))
+    return output

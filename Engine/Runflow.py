@@ -4,16 +4,20 @@ from tqdm import tqdm
 
 
 class Runflow:
-    def __init__(self, path: str,
-                 verbose: bool,
-                 plot_fitted: bool,
-                 plot_err: bool):
+    def __init__(
+            self, path: str,
+            verbose: bool,
+            plot_fitted: bool,
+            plot_err: bool
+    ):
+
         self.output = DataFrame(columns=['Portfolio', 'A', 'B', 'C', 'Scenario'])
         self.plot_fitted = plot_fitted
         self.plot_errors = plot_err
         self.verbose = verbose
         self.filepath = path
         self.models = {}
+
         self.equilibrium_data = None
         self.portfolio_data = None
         self.portfolios = None
@@ -124,9 +128,9 @@ class Runflow:
         mod = Engine(input_df=placeholder)
         mod.run()
 
-        A = mod.mean_model.params[0] / (1-mod.mean_model.params[1])
-        B = mod.mean_model.params[2] / (1-mod.mean_model.params[1])
-        C = mod.mean_model.params[3] / (1-mod.mean_model.params[1])
+        A = mod.mean_model.params[0] / (1 - mod.mean_model.params[1])
+        B = mod.mean_model.params[2] / (1 - mod.mean_model.params[1])
+        C = mod.mean_model.params[3] / (1 - mod.mean_model.params[1])
 
         Shock_ext_up = {'Portfolio': key,
                         'A': A * mod.shocks[0] / 100,
